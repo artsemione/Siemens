@@ -1,0 +1,16 @@
+DataPtrLen	DInt
+Run	Struct
+ID	USInt
+ID_Count	USInt
+State	UInt
+Query	Struct
+SlaveAddr	UInt
+DataAddr	UInt
+DataLen	UInt
+Mode	USInt
+Stat	Struct
+Busy	Bool
+Done	Bool
+Error	Bool
+Status	Word
+DataBuffer	Array[0..255] of Byte
