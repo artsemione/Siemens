@@ -1,0 +1,79 @@
+REGION INICIO   
+
+    #mb_Query.Run.ID_Count += 1;
+    
+    IF (#mb_Query.Run.ID <> #mb_Query.Run.ID_Count) OR (#mb_Query.Run.State = #EXECUTAR_QUERY) OR (#mb_Query.Stat.Busy) THEN
+        // Exit Block
+        RETURN;
+    END_IF;
+    
+    IF (NOT #EnableQuery) THEN
+        #Done := FALSE;
+        #Error := FALSE;
+        #Status := 0;
+        #ForaRede := FALSE;
+        // Exit Block
+        RETURN;
+    END_IF;
+    
+END_REGION
+
+REGION DATA_PTR
+    
+    CASE #mb_Query.Run.State OF
+            
+        #INSERIR_QUERY: // ATUALIZA PARÂMETROS DA REQUISIÇÃO
+            
+            IF #DataLen = 0 THEN // CÁLCULO AUTOMÁTICO DATA LENGTH
+                #Pos := 0;
+                #Rvs := Serialize(SRC_VARIABLE := #DataPtr, DEST_ARRAY => #mb_Query.DataBuffer, POS := #Pos); // (#pos = LENGTH(#DataPointer) EM BYTES)
+                IF #DataAddr > 20000 THEN
+                    #Data_Len := DINT_TO_UINT(#Pos / 2);
+                ELSE
+                    #Data_Len := DINT_TO_UINT(#Pos * 8);
+                END_IF;
+            ELSE
+                #Data_Len := #DataLen;
+            END_IF;
+            
+            // DADOS REQUISIÇÃO
+            #mb_Query.Query.SlaveAddr := #SlaveAddr;
+            #mb_Query.Query.DataAddr := #DataAddr;
+            #mb_Query.Query.DataLen := #Data_Len;
+            #mb_Query.Query.Mode := #Mode;
+            #mb_Query.Run.State := #EXECUTAR_QUERY;
+            
+            //FILL_BLK(IN:=0, COUNT:=256, OUT=> #data_buffer[0]); // ZERA BUFFER DE DADOS
+            
+            IF (#Mode = 1) THEN // ESCRITA DE DADOS
+                #Pos := 0;
+                #Rvs := Serialize(SRC_VARIABLE := #DataPtr, DEST_ARRAY => #mb_Query.DataBuffer, POS := #Pos); // (#DATA_PTR -> #DATA_BUFFER)
+            END_IF;
+            
+        #FINALIZAR_QUERY:
+            
+            #Done := #mb_Query.Stat.Done;
+            #Error := #mb_Query.Stat.Error;
+            #Status := #mb_Query.Stat.Status;
+            
+            IF (#Mode = 0) AND (NOT #mb_Query.Stat.Error) THEN // LEITURA DE DADOS
+                #Pos := 0;
+                #Rvd := Deserialize(SRC_ARRAY := #mb_Query.DataBuffer, DEST_VARIABLE => #DataPtr, POS := #Pos); // (#DATA_BUFFER -> #DATA_PTR)
+            END_IF;
+            
+            #mb_Query.Run.ID += 1; // PRÓXIMA REQUISIÇÃO
+            #mb_Query.Run.State := #INSERIR_QUERY;
+            
+    END_CASE;
+END_REGION
+
+REGION TIMEOUT
+    
+    #Timers.TimeOut(IN:= (#Status <> 16#0),
+                          PT:=#TempoForaRede,
+                          Q=>#ForaRede);
+    
+END_REGION
+
+
+
