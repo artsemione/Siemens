@@ -1,0 +1,61 @@
+REGION INICIA REQUISIÇÃO (#INIT_QUERY)
+    
+    #Comm_Load.MODE := 4;
+    #Comm_Load(REQ := (#mb_Query.Run.State = #ORIGEM), // CONFIGURAÇÃO DO HARDWARE
+               "PORT" := #HardwareID,
+               BAUD := #Baud,
+               PARITY := #Paridade,
+               FLOW_CTRL := 0,
+               RTS_ON_DLY := 0,
+               RTS_OFF_DLY := 0,
+               RESP_TO := #TimeOut,
+               MB_DB := #Comm_Master.MB_DB);
+    
+    IF (#mb_Query.Run.State = #ORIGEM) THEN
+        #CommLoadDone := #Comm_Load.DONE;
+        #CommLoadError := #Comm_Load.ERROR;
+        #CommLoadStatus := #Comm_Load.STATUS;
+        IF #Comm_Load.DONE THEN
+            #mb_Query.Run.ID := 1;
+            #mb_Query.Run.State := #INSERIR_QUERY; // EXECUTADO EM "MB_QUERY"
+        END_IF;
+    END_IF;
+    
+END_REGION
+
+REGION EXECUTA A REQUISIÇÃO (#EXEC_QUERY)
+    
+    #Comm_Master(REQ := (#mb_Query.Run.State = #EXECUTAR_QUERY AND NOT (#Comm_Master.BUSY)),
+                 MB_ADDR := #mb_Query.Query.SlaveAddr,
+                 MODE := #mb_Query.Query.Mode,
+                 DATA_ADDR := #mb_Query.Query.DataAddr,
+                 DATA_LEN := #mb_Query.Query.DataLen,
+                 BUSY => #mb_Query.Stat.Busy,
+                 DATA_PTR := #mb_Query.DataBuffer);
+
+    IF #mb_Query.Run.State = #EXECUTAR_QUERY THEN
+        #mb_Query.Stat.Error := #Comm_Master.ERROR;
+        #mb_Query.Stat.Done := #Comm_Master.DONE;
+        #mb_Query.Stat.Status := #Comm_Master.STATUS;
+        
+        IF (#Comm_Master.ERROR) OR (#Comm_Master.DONE) THEN
+            #mb_Query.Run.State := #FINALIZAR_QUERY; // EXECUTADO EM "MB_QUERY"
+        END_IF;
+    END_IF;
+    
+END_REGION
+
+REGION CONTROLE DE FLUXO
+    
+    IF #mb_Query.Run.ID > #mb_Query.Run.ID_Count THEN
+        #mb_Query.Run.ID := 1; // SOMADO EM "MB_QUERY" AO FIM DA REQUISIÇÃO
+    END_IF;
+    
+    #mb_Query.Run.ID_Count := 0; // SOMADO EM "MB_QUERY"
+    
+END_REGION
+
+
+
+
+
